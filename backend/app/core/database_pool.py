@@ -18,7 +18,7 @@ class DatabasePool:
         try:
             # settings don't have any supabase_db_* fields, so this was crashing
             # every time and we got mock data instead of the real db
-            # using DATABASE_URL from config with asyncpg driver, should fix it
+            # using DATABASE_URL from config with asyncpg driver
             database_url = settings.database_url.replace(
                 "postgresql://", "postgresql+asyncpg://", 1
             )
