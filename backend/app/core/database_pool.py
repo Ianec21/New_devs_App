@@ -1,6 +1,5 @@
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.pool import QueuePool
 import logging
 from ..config import settings
 
@@ -13,13 +12,21 @@ class DatabasePool:
         
     async def initialize(self):
         """Initialize database connection pool"""
+        # already initialized, no need to create the engine again
+        if self.session_factory:
+            return
         try:
-            # Create async engine with connection pooling
-            database_url = f"postgresql+asyncpg://{settings.supabase_db_user}:{settings.supabase_db_password}@{settings.supabase_db_host}:{settings.supabase_db_port}/{settings.supabase_db_name}"
-            
+            # settings don't have any supabase_db_* fields, so this was crashing
+            # every time and we got mock data instead of the real db
+            # using DATABASE_URL from config with asyncpg driver, should fix it
+            database_url = settings.database_url.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+
+            # QueuePool doesn't work with async engine, it throws an error
+            # removed it, the default pool is the async one
             self.engine = create_async_engine(
                 database_url,
-                poolclass=QueuePool,
                 pool_size=20,  # Number of connections to maintain
                 max_overflow=30,  # Additional connections when needed
                 pool_pre_ping=True,  # Validate connections
@@ -45,8 +52,10 @@ class DatabasePool:
         if self.engine:
             await self.engine.dispose()
     
-    async def get_session(self) -> AsyncSession:
+    def get_session(self) -> AsyncSession:
         """Get database session from pool"""
+        # this was async, so `async with get_session()` got a coroutine and failed
+        # it's a normal function now, returns the session directly
         if not self.session_factory:
             raise Exception("Database pool not initialized")
         return self.session_factory()
